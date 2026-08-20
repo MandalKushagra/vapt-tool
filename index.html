@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VAPT Remediation Tool</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        h1 { color: #1565c0; margin-bottom: 4px; font-size: 24px; }
+        h2 { color: #2e7d32; margin: 28px 0 12px; font-size: 17px; border-bottom: 2px solid #e0e0e0; padding-bottom: 6px; }
+        .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+        label { display: block; margin: 12px 0 4px; color: #444; font-size: 13px; font-weight: 600; }
+        input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; color: #1a1a1a; font-size: 14px; font-family: monospace; }
+        input:focus, textarea:focus { border-color: #1565c0; outline: none; background: white; }
+        textarea { min-height: 120px; resize: vertical; }
+        .env-block { background: #f0f7ff; border: 1px solid #bbdefb; border-radius: 8px; padding: 16px; margin: 12px 0; }
+        .env-block h3 { color: #e65100; font-size: 14px; margin-bottom: 12px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; margin: 8px 8px 8px 0; transition: all 0.2s; }
+        .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+        .btn-add { background: #2e7d32; color: white; }
+        .btn-remove { background: #c62828; color: white; padding: 6px 12px; font-size: 12px; }
+        .btn-strip { background: #f57c00; color: white; padding: 6px 12px; font-size: 12px; margin-right: 8px; }
+        .btn-generate { background: #1565c0; color: white; font-size: 16px; padding: 14px 32px; margin-top: 24px; }
+        .btn-copy { background: #6a1b9a; color: white; }
+        .btn-download { background: #e65100; color: white; }
+        .output { background: #fafafa; border: 2px solid #1565c0; border-radius: 8px; padding: 16px; margin-top: 16px; white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 500px; overflow-y: auto; color: #333; }
+        .hidden { display: none; }
+        hr { border: none; border-top: 1px solid #e0e0e0; margin: 24px 0; }
+        .note { background: #fff3e0; border-left: 4px solid #e65100; padding: 12px; border-radius: 4px; margin: 12px 0; font-size: 13px; color: #444; }
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #e0e0e0; padding: 8px 10px; text-align: left; vertical-align: top; }
+        th { background: #1565c0; color: white; font-weight: 600; white-space: nowrap; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        tr:hover { background: #e3f2fd; }
+        td a { color: #1565c0; text-decoration: none; font-weight: 500; }
+        td a:hover { text-decoration: underline; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .badge.done { background: #c8e6c9; color: #2e7d32; }
+        .badge.pending { background: #fff9c4; color: #f57f17; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔒 VAPT Remediation Tool</h1>
+    <p class="subtitle">Fill in details → Generate context → Paste to Kiro (fresh chat) for processing</p>
+
+    <h2>1. Repository Info</h2>
+    <label>GitHub Repo (org/repo format)</label>
+    <input type="text" id="repoName" placeholder="delhivery/wms-container">
+
+    <h2>2. Environment ↔ Branch Mapping</h2>
+    <div class="note">Add each environment that deploys from this repo. The agent will create PRs per env branch.</div>
+    <div id="envList">
+        <div class="env-block" data-env="0">
+            <h3>Environment 1</h3>
+            <label>Environment Name (e.g., prod, qa_mumbai, qa2_mumbai)</label>
+            <input type="text" class="env-name" placeholder="prod">
+            <label>Branch Name</label>
+            <input type="text" class="env-branch" placeholder="master">
+            <label>Devtron ConfigMap/Secrets already present (key: value, one per line)</label>
+            <textarea class="env-devtron" placeholder="log_enabled: ERROR&#10;kafka_consumer_enabled: false&#10;aws_secrets_region: ap-south-1&#10;KAFKA_USERNAME: wms&#10;KAFKA_PASSWORD: delhivery@wms"></textarea>
+            <button class="btn btn-strip" onclick="stripValues(this)">🔑 Strip Values (Keep Keys Only)</button>
+            <button class="btn btn-remove" onclick="removeEnv(this)">Remove</button>
+        </div>
+    </div>
+    <button class="btn btn-add" onclick="addEnv()">+ Add Environment</button>
+
+    <h2>3. Wiz Report (CSV)</h2>
+    <label>Upload CSV or paste content</label>
+    <input type="file" id="csvFile" accept=".csv" onchange="loadCSV(this)" style="margin-bottom:8px">
+    <textarea id="wizReport" placeholder="Paste Wiz CSV report content here..."></textarea>
+
+    <hr>
+    <button class="btn btn-generate" onclick="generate()">🚀 Generate Context File</button>
+    <div class="actions hidden" id="actionBtns">
+        <button class="btn btn-copy" onclick="copyOutput()">📋 Copy to Clipboard</button>
+        <button class="btn btn-download" onclick="downloadOutput()">💾 Download as .md</button>
+    </div>
+
+    <div id="output" class="output hidden"></div>
+</div>
+
+<script>
+let envCounter = 1;
+
+function addEnv() {
+    envCounter++;
+    const div = document.createElement('div');
+    div.className = 'env-block';
+    div.innerHTML = `
+        <h3>Environment ${envCounter}</h3>
+        <label>Environment Name</label>
+        <input type="text" class="env-name" placeholder="qa_mumbai">
+        <label>Branch Name</label>
+        <input type="text" class="env-branch" placeholder="qa-">
+        <label>Devtron ConfigMap/Secrets already present (key: value, one per line)</label>
+        <textarea class="env-devtron" placeholder="key: value"></textarea>
+        <button class="btn btn-strip" onclick="stripValues(this)">🔑 Strip Values (Keep Keys Only)</button>
+        <button class="btn btn-remove" onclick="removeEnv(this)">Remove</button>
+    `;
+    document.getElementById('envList').appendChild(div);
+}
+
+function removeEnv(btn) { btn.parentElement.remove(); }
+
+function stripValues(btn) {
+    const textarea = btn.parentElement.querySelector('.env-devtron');
+    const lines = textarea.value.split('\n');
+    const keysOnly = lines
+        .map(line => line.split(':')[0].trim())
+        .filter(key => key.length > 0)
+        .join('\n');
+    textarea.value = keysOnly;
+}
+
+function loadCSV(input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => { document.getElementById('wizReport').value = e.target.result; };
+        reader.readAsText(file);
+    }
+}
+
+function getSystemPrompt() {
+    return `## SYSTEM CONTEXT — VAPT REMEDIATION AGENT
+
+You are processing a VAPT (Vulnerability Assessment & Penetration Testing) remediation request for a Delhivery microservice.
+
+### BACKGROUND
+- Delhivery's security team (using Wiz) has flagged repos for Critical/High severity vulnerabilities
+- Two types of findings: SCA (vulnerable dependencies) and Hard-Coded Secrets
+- Deadline: 30 June 2026. CTO approval needed for extensions.
+- Services run on K8s via Devtron. Devtron injects env vars/secrets at runtime.
+
+### WHAT YOU NEED TO DO
+
+#### SCA (Software Composition Analysis) Fix:
+1. Read the Wiz CSV report to identify which CVEs are flagged
+2. Check the repo's dependency file via GitHub MCP:
+   - Java/Maven: pom.xml
+   - Java/Gradle: build.gradle
+   - Python: requirements.txt, Pipfile, pyproject.toml, setup.py
+3. Determine the correct fix:
+   - Java/Maven: Add version override property in pom.xml <properties> (e.g., <tomcat.version>9.0.100</tomcat.version>)
+   - Java/Gradle: Update dependency version in build.gradle
+   - Python: Bump package version in requirements.txt / Pipfile
+4. Version selection: Pick the first stable release after the fix version that's 2-3 months old
+5. For Java Spring Boot tomcat CVEs specifically:
+   - Spring Boot parent POM controls transitive deps via properties
+   - Tomcat 9.0.x latest stable as of Jun 2026: 9.0.115, safe pick: 9.0.100
+6. Verify: build should pass (mvn clean compile / pip install -r requirements.txt / gradle build)
+
+#### Secrets Fix:
+1. Search the ENTIRE repo for hardcoded secrets (not just properties files)
+2. Common locations:
+   **Java repos:**
+   - application.properties (base)
+   - application-prod.properties (prod env)
+   - application-qa_mumbai.properties (QA env — for cherry-pick)
+   - application-qa2_mumbai.properties (QA2 env — for cherry-pick)
+   - newrelic.yml (New Relic license key — use ERB syntax: <%= ENV["KEY"] %>)
+   - sentry.properties — SKIP, DO NOT TOUCH. Sentry is being deprecated. Leave hardcoded DSN as-is.
+   **Python repos:**
+   - .env files
+   - config.py / settings.py
+   - config/*.yaml or config/*.json
+   - Any hardcoded in source code (grep for passwords, tokens, keys)
+3. Replace hardcoded values with environment variable references:
+   - Java Spring properties: \${ENV_VAR_NAME}
+   - Java newrelic.yml: <%= ENV["KEY"] %>
+   - Python: os.environ.get("KEY") or \${KEY} in config files
+4. DO NOT touch dev/staging-only files unless specifically asked
+5. Focus properties fixes on: application.properties, application-prod.properties, application-qa_mumbai.properties, application-qa2_mumbai.properties
+
+#### CRITICAL — Branch Discovery:
+- ALWAYS list ALL branches with perPage=100 before doing anything else. Repos can have 30+ branches and default pagination (30) may hide the target branch.
+- The branch names provided in this request are AUTHORITATIVE. If you don't see a branch in the first page of results, paginate or use perPage=100. Do NOT assume it doesn't exist and substitute a different branch.
+- If after listing all branches (perPage=100) a specified branch truly does not exist, STOP and ask the user before proceeding with a different branch.
+
+#### Branching & PR Strategy:
+- Repos use long-lived branches per environment (e.g., master for prod, stg_master/qa- for QA, grv_qa2 for QA2)
+- Create SEPARATE feature branches and SEPARATE PRs for EACH environment branch
+- For each environment listed in the request:
+  1. Create a feature branch FROM that environment's branch (e.g., fix/vapt-remediation-qa from stg_master)
+  2. Fix the secrets/SCA on that branch using the files AS THEY EXIST on that branch (they may differ between branches)
+  3. Push and create a PR targeting that environment's branch
+- This means if there are 3 environments (prod, qa, qa2), you create 3 feature branches and 3 PRs
+- Each branch's pom.xml and property files may be slightly different — always READ the actual file from the target branch before modifying
+- Do NOT assume files are identical across branches
+
+#### CRITICAL — Do NOT sync config values across branches:
+- ONLY replace hardcoded secrets (passwords, tokens, keys) with env var placeholders
+- DO NOT change any other config values (hostnames, ports, kafka topics, redis hosts, URLs, feature flags, etc.)
+- Each environment branch has its own config values (e.g., QA uses different kafka hosts, redis hosts than prod) — these MUST be preserved exactly as-is
+- The ONLY changes allowed per file are:
+  1. Replacing hardcoded secret values (passwords, keys, tokens) with \${ENV_VAR} or <%= ENV["KEY"] %>
+  2. Adding the tomcat.version property in pom.xml
+- If a branch has kafka.username=wms and kafka.password=wms-secret hardcoded, replace ONLY those values with \${KAFKA_USERNAME} and \${KAFKA_PASSWORD} — keep kafka.securityEnabled, kafka host, etc. untouched
+- Prod and QA/QA2 branches WILL have different values for the same keys — this is expected and correct. Do not "normalize" them.
+
+#### CRITICAL — Always read files from the TARGET branch, never reuse master content:
+- For EACH environment branch, you MUST call get_file_contents with ref=<that_branch> to read the actual file
+- NEVER take content you read from master and push it to a QA/QA2 feature branch
+- The files differ between branches (different configs, different comments, different formatting, different env blocks)
+- The correct workflow per branch is:
+  1. Read the file FROM that branch: get_file_contents(path, ref=grv_qa2)
+  2. In that content, find and replace ONLY the secret values with env var placeholders
+  3. Push that modified content back to the feature branch
+- If you reuse master's file content on a non-prod branch, the diff will show hundreds of spurious deletions/additions — this is WRONG
+- The PR diff should be minimal: only the lines containing secrets should change (typically 2-6 lines per file)
+
+#### CRITICAL — Do NOT modify file formatting:
+- Do NOT remove comments (XML &lt;!-- --&gt;, YAML #, properties #) from any file
+- Do NOT remove blank lines between sections
+- Do NOT reformat indentation, spacing, or line ordering
+- Do NOT remove empty lines at end of file or between dependency blocks
+- The PR diff must be MINIMAL: only secret-value lines change + 1 pom.xml property line added
+- If your diff shows more than 10 lines changed in any single file, STOP — you are rewriting the file instead of editing it. Re-read the original and try again.
+- GitHub's create_or_update_file API always adds a trailing newline. If the original file had no trailing newline, a cosmetic 1-line diff on the last line is unavoidable. This is acceptable.
+
+#### PR Description Must Include:
+- CVE details (ID, severity, component, current vs fix version)
+- List of secrets removed (file, what was removed, what placeholder replaces it)
+- Devtron secrets to add BEFORE deploying (key: description, for this specific environment)
+- Testing done (compile, local startup if possible)
+- IMPORTANT: When creating PRs via GitHub MCP, the body parameter must use REAL newlines, not literal \\n. Use proper multi-line strings. Markdown tables and headers must render correctly on GitHub.
+
+#### Devtron Values Output:
+- For each environment, provide exact key: value pairs to add as Devtron Secrets
+- The values are whatever was hardcoded in the properties/config files before removal
+- Format: KEY_NAME: value (one per line) — use COLON SPACE as separator, NOT equals sign
+- Example: COMS_TOKEN: Zd9241DO4igjppSZ2kslg0sYwATKfF5m
+- PRINT FULL VALUES — do not truncate or abbreviate
+- WRITE THE EXACT VALUE THAT WAS HARDCODED IN THE CODE. Do NOT write "generate new token", "generate fresh token", or any instruction/placeholder. Just the raw value as-is from the source code.
+- In the xlsx tracker columns (7, 8, 9), also use "KEY: value" format with colon, NOT "KEY=value"
+- The xlsx Devtron Keys columns MUST contain the actual secret values exactly as they were in the code — no modifications, no instructions, no placeholders
+
+#### Tracker Sheet Update:
+- After completing the remediation, update the Excel tracker at /home/kushagra/Documents/Repositories/Java/vapt-tool/VAPT_Team_Tracker.xlsx by running a Python script (using openpyxl):
+  1. Install openpyxl if not present: pip install openpyxl
+  2. Open the xlsx, find the EXISTING row for this repo (search column 2 for repo name)
+  3. Update that row IN-PLACE (do NOT append a new row). The columns are:
+     - Col 1: # (leave as-is)
+     - Col 2: Repo Name (leave as-is)
+     - Col 3: Author (leave as-is)
+     - Col 4: Wiz URL (leave as-is)
+     - Col 5: SCA Status → set to "Done"
+     - Col 6: Secrets Status → set to "Done"
+     - Col 7: Devtron Keys (Prod) → key: value pairs separated by newlines (EXACT values from code, NOT placeholders or instructions)
+     - Col 8: Devtron Keys (QA) → key: value pairs separated by newlines (EXACT values from code, NOT placeholders or instructions)
+     - Col 9: Devtron Keys (QA2) → key: value pairs separated by newlines (EXACT values from code, NOT placeholders or instructions)
+     - Col 10: PR Link (Prod) → full URL
+     - Col 11: PR Link (QA) → full URL
+     - Col 12: PR Link (QA2) → full URL
+     - Col 13: Notes → version change info
+  4. Save the file
+  5. If openpyxl fails or xlsx is locked, output the row for manual paste
+- Do NOT update VAPT_REMEDIATION_ACTIVITY.md — only the xlsx tracker matters
+
+### IMPORTANT RULES:
+- newrelic.yml does NOT support Spring \${} syntax. Use: <%= ENV["NEW_RELIC_LICENSE_KEY"] %>
+- sentry.properties: SKIP / IGNORE. Sentry is being deprecated across WMS services. Do NOT remove hardcoded DSN from sentry.properties. Leave sentry.properties untouched.
+- application-*.properties use \${ENV_VAR} syntax (resolved by Spring)
+- Python files: use os.environ.get() or env var syntax depending on framework
+- Use GitHub MCP to read files, create branches, push, create PRs
+- Don't print actual secret values in PR descriptions on GitHub
+- DO print full values in chat for user to copy to Devtron (they asked for this explicitly)
+- For version decision: check Apache/Maven Central/PyPI for latest stable, pick conservative (2-3 months old)
+- Search ALL files in repo for secrets, not just the obvious ones
+`;
+}
+
+function generate() {
+    const repo = document.getElementById('repoName').value.trim();
+    const wizReport = document.getElementById('wizReport').value.trim();
+
+    const envs = [];
+    document.querySelectorAll('.env-block').forEach(block => {
+        const name = block.querySelector('.env-name').value.trim();
+        const branch = block.querySelector('.env-branch').value.trim();
+        const devtron = block.querySelector('.env-devtron').value.trim();
+        if (name) envs.push({ name, branch, devtron });
+    });
+
+    let output = getSystemPrompt();
+    output += `\n---\n\n`;
+    output += `# REMEDIATION REQUEST\n\n`;
+    output += `## Repository: ${repo}\n\n`;
+
+    output += `## Environments & Branches:\n`;
+    envs.forEach(env => {
+        output += `\n### Environment: ${env.name}\n`;
+        output += `- Branch: \`${env.branch}\`\n`;
+        output += `- Devtron config already present:\n`;
+        output += `\`\`\`\n${env.devtron || '(none provided)'}\n\`\`\`\n`;
+    });
+
+    output += `\n## Wiz Vulnerability Report:\n`;
+    output += `\`\`\`csv\n${wizReport || '(no report provided — check Wiz URL for this repo)'}\n\`\`\`\n\n`;
+
+    output += `## Action Required:\n`;
+    output += `1. Read the repo's pom.xml/build.gradle from GitHub\n`;
+    output += `2. Identify vulnerable dependencies from the Wiz report\n`;
+    output += `3. Search ALL files in the repo for hardcoded secrets (passwords, tokens, keys, DSNs)\n`;
+    output += `   - Focus properties fixes on: application.properties, application-prod.properties, application-qa_mumbai.properties, application-qa2_mumbai.properties\n`;
+    output += `   - Also check: newrelic.yml and any other config files (SKIP sentry.properties — leave untouched)\n`;
+    output += `4. Apply SCA fix (version override in pom.xml properties)\n`;
+    output += `5. Replace secrets with env var placeholders\n`;
+    output += `6. For EACH environment/branch listed above:\n`;
+    output += `   - Create a separate feature branch FROM that environment's branch\n`;
+    output += `   - Read the actual files on that branch (they may differ between branches)\n`;
+    output += `   - Apply fixes specific to that branch's file content\n`;
+    output += `   - Push and create a separate PR targeting that environment's branch\n`;
+    output += `7. Output:\n`;
+    output += `   - PR links (one per environment)\n`;
+    output += `   - Devtron secrets to add per environment (key: value with actual values)\n`;
+    output += `   - Any warnings or notes\n`;
+    output += `8. Update tracking xlsx:\n`;
+    output += `   - Update /home/kushagra/Documents/Repositories/Java/vapt-tool/VAPT_Team_Tracker.xlsx using Python (openpyxl):\n`;
+    output += `     - pip install openpyxl if needed\n`;
+    output += `     - Open xlsx, find the EXISTING row for this repo (search column 2 for repo name)\n`;
+    output += `     - Update that row IN-PLACE: Col 5=SCA Status(Done), Col 6=Secrets Status(Done), Col 7=Devtron Keys Prod, Col 8=Devtron Keys QA, Col 9=Devtron Keys QA2, Col 10=PR Prod, Col 11=PR QA, Col 12=PR QA2, Col 13=Notes\n`;
+    output += `     - Do NOT append a new row — the repo already exists in the sheet\n`;
+    output += `     - Save the file\n`;
+    output += `   - If xlsx update fails (file locked/library missing), output the row for manual paste\n`;
+    output += `   - Do NOT update VAPT_REMEDIATION_ACTIVITY.md\n`;
+
+    document.getElementById('output').textContent = output;
+    document.getElementById('output').classList.remove('hidden');
+    document.getElementById('actionBtns').classList.remove('hidden');
+}
+
+function copyOutput() {
+    const text = document.getElementById('output').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        event.target.textContent = '✅ Copied!';
+        setTimeout(() => { event.target.textContent = '📋 Copy to Clipboard'; }, 2000);
+    });
+}
+
+function downloadOutput() {
+    const text = document.getElementById('output').textContent;
+    const repo = document.getElementById('repoName').value.trim().replace('/', '-');
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vapt-${repo}-${new Date().toISOString().slice(0,10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# ---- Secrets & sensitive data (NEVER commit) ----
+# Devtron secret dumps: contain live DB passwords, JWT/FAAS service tokens
+devtron_qa_keys.txt
+devtron_qa_keys_formatted.txt
+*_keys.txt
+*_keys_formatted.txt
+
+# Tracking spreadsheets: contain Devtron secret key/value pairs
+*.xlsx
+*.xls
+*.csv
+
+# Wiz reports (may contain sensitive scan output)
+wiz*.csv
+*wiz*.csv
+
+# ---- Editor / OS cruft ----
+# LibreOffice / OpenOffice lock files
+.~lock.*#
+*~
+.DS_Store
+Thumbs.db
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
