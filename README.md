@@ -65,6 +65,7 @@ vapt-tool/
 ├── index.html                    # The form (open in a browser)
 ├── README.md                     # This file
 ├── SETUP.md                      # Setup & usage guide
+├── WINDOWS.md                    # Windows-specific setup & usage guide
 ├── VAPT_REMEDIATION_ACTIVITY.md  # Full remediation methodology & tracking
 ├── VAPT_TOMCAT_UPDATE_REPORT.md  # Example remediation report
 └── .gitignore                    # Excludes secret files from version control
@@ -85,7 +86,7 @@ xdg-open index.html
 # Windows: start index.html
 ```
 
-See [SETUP.md](SETUP.md) for detailed usage.
+See [SETUP.md](SETUP.md) for detailed usage, or [WINDOWS.md](WINDOWS.md) if you're on Windows.
 
 ## Security
 
